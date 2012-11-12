@@ -5,10 +5,13 @@ Google Civic API client
 ## Usage
 
 (elections "YOUR-API-KEY") =>
+
 [{:id "2000", :name "VIP Test Election", :electionDay "2013-06-06"}
  {:id "4000", :name "U.S. 2012 General Election", :electionDay ""}]
 
+
 (voter-info "YOUR-API-KEY" "ELECTION-ID" "123 Voter St Denver CO 80218") =>
+
 {:state [{:name "Colorado", :electionAdministrationBody {:name "Colorado Secretary of State", :electionInfoUrl "http://www.sos.state.co.us/pubs/elections/", :electionRegistrationUrl "http://www.sos.state.co.us/pubs/elections/vote/VoterHome.html", :electionRegistrationConfirmationUrl "http://www.sos.state.co.us/pubs/elections/vote/VoterHome.html", :absenteeVotingInfoUrl "http://www.sos.state.co.us/pubs/elections/referenceGuides/Mail-inVoting.pdf", :ballotInfoUrl "http://www.sos.state.co.us/pubs/elections/vote/VoterHome.html", :electionRulesUrl "http://www.sos.state.co.us/pubs/elections/LawsRules/lawRulesOpinions.html", :correspondenceAddress {:line1 "1700 Broadway Ste 270", :city "Denver", :state "Colorado", :zip "80290-1702"}}, :local_jurisdiction {:name "Denver", :electionAdministrationBody {:name "County Clerk and Recorder", :hoursOfOperation "", :correspondenceAddress {:line1 "", :city "", :state "CO", :zip ""}, :physicalAddress {:line1 "200 W. 14th Ave., Suite 100", :city "Denver", :state "CO", :zip "80204"}, :electionOfficials [{:name "Debra Johnson", :title "County Clerk and Recorder", :officePhoneNumber "(720) 913-8683", :faxNumber "(720) 913-8600", :emailAddress "voterregistration@denvergov.org"}]}, :sources [{:name "TurboVote", :official false}]}, :sources [{:name "TurboVote", :official false}]}], :normalizedInput {:line1 "123 Voter St", :city "Denver", :state "CO", :zip "80218"}, :election {:id "2000", :name "VIP Test Election", :electionDay "2013-06-06"}}
 
 ## License
