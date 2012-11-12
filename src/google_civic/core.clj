@@ -16,7 +16,7 @@
 
 (defn- api-req
   ([api-key endpoint & [post-data]]
-    (json/parse-string ((api-response api-key endpoint post-data) :body) true)))
+    (json/parse-string (:body (api-response api-key endpoint post-data)) true)))
 
 (defn elections [api-key]
   (:elections (api-req api-key "/elections")))
