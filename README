@@ -19,3 +19,9 @@ Google Civic API client
 Copyright (C) 2012 Wes Morgan
 
 Distributed under the Eclipse Public License, the same as Clojure.
+
+## Changelog
+
+* 1.0.1 - Bump dependency versions to latest releases
+
+* 1.0.0 - Initial release

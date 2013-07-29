@@ -1,5 +1,5 @@
-(defproject google-civic "1.0.0"
+(defproject google-civic "1.0.1"
   :description "Google Civic Info API client"
-  :dependencies [[org.clojure/clojure "1.3.0"]
-                 [clj-http "0.5.7"]
-                 [cheshire "4.0.4"]])
+  :dependencies [[org.clojure/clojure "1.5.1"]
+                 [clj-http "0.7.6"]
+                 [cheshire "5.2.0"]])
