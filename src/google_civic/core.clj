@@ -33,8 +33,7 @@
                        (merge query-params {:electionId election-id})
                        query-params)
         response (api-req api-key (str "/voterinfo") query-params)
-        voter-info (select-keys response
-                                [:election :normalizedInput :contests :state])]
+        voter-info (dissoc response :kind)]
     (if (empty? voter-info)
       (:body response)
       voter-info)))
