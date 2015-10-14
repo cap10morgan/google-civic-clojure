@@ -4,5 +4,5 @@
                  [clj-http "2.0.0"]
                  [cheshire "5.5.0"]
                  [slingshot "0.12.2"]]
-  :repositories {"releases" :clojars}
+  :deploy-repositories {"releases" :clojars}
   :profiles {:dev {:dependencies [[clj-http-fake "1.0.1"]]}})
