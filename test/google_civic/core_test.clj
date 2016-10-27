@@ -24,6 +24,32 @@
              (:status (api-response "FAKE-KEY" "/foo"
                                     {:bar "baz" :qux "quux"})))))))
 
+(deftest temporary-rate-limit?-test
+  (testing "returns false if the code isn't 403"
+    (is (not (temporary-rate-limit? {:status 404}
+                                    {:error {:errors
+                                             [{:reason "notFound"}]}}))))
+  (testing "returns false if the reason isn't in the set"
+    (is (not (temporary-rate-limit? {:status 403}
+                                    {:error {:errors
+                                             [{:reason "quotaLimit"}]}}))))
+  (testing "returns false if there are any non set reasons"
+    (is (not (temporary-rate-limit? {:status 403}
+                                    {:error
+                                     {:errors
+                                      [{:reason "rateLimitExceeded"}
+                                       {:reason "quotaLimit"}]}}))))
+  (testing "returns true with only temporary rate limits"
+    (is (temporary-rate-limit? {:status 403}
+                               {:error
+                                {:errors
+                                 [{:reason "rateLimitExceeded"}]}}))
+    (is (temporary-rate-limit? {:status 403}
+                               {:error
+                                {:errors
+                                 [{:reason "rateLimitExceeded"}
+                                  {:reason "userRateLimitExceeded"}]}}))))
+
 (deftest api-req-test
   (testing "returns parsed response body on success"
     (let [body {:yay "it worked"}]

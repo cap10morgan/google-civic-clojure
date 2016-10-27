@@ -4,6 +4,21 @@
 
 (def api-root "https://www.googleapis.com/civicinfo/v2")
 
+(def temporary-rate-limit-reasons
+  #{"concurrentLimitExceeded" "rateLimitExceeded"
+    "servingLimitExceeded" "userRateLimitExceeded"})
+
+(defn temporary-rate-limit?
+  "True if the errors in the response only include errors from the
+  temporary-rate-limit-reasons set and the code is 403."
+  [response body]
+  (and (= 403 (:status response))
+       (let [errors (get-in body [:error :errors])
+             reasons (->> errors (map :reason) set)]
+         (and (seq reasons)
+              (set/superset? temporary-rate-limit-reasons
+                             reasons)))))
+
 (defn api-url [endpoint]
   (str api-root endpoint))
 
