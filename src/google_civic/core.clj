@@ -1,7 +1,6 @@
 (ns google-civic.core
   (:require [clj-http.client :as client]
             [cheshire.core :as json]
-            [slingshot.slingshot :refer [try+]]))
 
 (def api-root "https://www.googleapis.com/civicinfo/v2")
 
