@@ -50,22 +50,52 @@
                                  [{:reason "rateLimitExceeded"}
                                   {:reason "userRateLimitExceeded"}]}}))))
 
+(deftest can-retry?-test
+  (testing "true if code is server error"
+    (is (can-retry? {:status 500}
+                    {:error {:errors [{:reason "serverError"}]}})))
+  (testing "true if temporary rate limit"
+    (is (can-retry? {:status 403}
+                    {:error {:errors [{:reason "rateLimitExceeded"}]}})))
+  (testing "false for anything else"
+    (is (not (can-retry? {:status 403}
+                         {:error {:errors [{:reason "quotaExceeded"}]}})))
+    (is (not (can-retry? {:status 302} nil)))))
+
 (deftest api-req-test
-  (testing "returns parsed response body on success"
-    (let [body {:yay "it worked"}]
+  (testing "returns parsed response body on success - no query params"
+    (let [body {:yay "it worked"}
+          call-counter (atom 0)]
       (with-fake-routes-in-isolation {(str (api-url "/foo")
-                                           "?key=FAKE-KEY&extra=thingy")
-                                      (fn [_] {:status 200
+                                           "?key=FAKE-KEY")
+                                      (fn [_] (swap! call-counter inc)
+                                              {:status 200
                                                :headers {"Content-Type"
                                                          "application/json"}
                                                :body (json/generate-string body)})}
         (is (= body
-               (api-req "FAKE-KEY" "/foo" {:extra "thingy"}))))))
+               (api-req "FAKE-KEY" "/foo")))
+        (is (= 1 @call-counter)))))
+  (testing "returns parsed response body on success"
+    (let [body {:yay "it worked"}
+          call-counter (atom 0)]
+      (with-fake-routes-in-isolation {(str (api-url "/foo")
+                                           "?key=FAKE-KEY&extra=thingy")
+                                      (fn [_] (swap! call-counter inc)
+                                              {:status 200
+                                               :headers {"Content-Type"
+                                                         "application/json"}
+                                               :body (json/generate-string body)})}
+        (is (= body
+               (api-req "FAKE-KEY" "/foo" {:extra "thingy"})))
+        (is (= 1 @call-counter)))))
   (testing "returns parsed error response"
-    (let [error {:error {:errors [{:bad "error"}]}}]
+    (let [error {:error {:errors [{:bad "error"}]}}
+          call-counter (atom 0)]
       (with-fake-routes-in-isolation {(str (api-url "/foo")
                                            "?key=FAKE-KEY&bad=error")
-                                      (fn [_] {:status 400
+                                      (fn [_] (swap! call-counter inc)
+                                              {:status 400
                                                :headers {"Content-Type"
                                                          "application/json"}
                                                :body (json/generate-string
@@ -73,4 +103,61 @@
         (is (= {:status 400 :body error :headers {"Content-Type"
                                                   "application/json"}}
                (select-keys (api-req "FAKE-KEY" "/foo" {:bad "error"})
-                            [:status :body :headers])))))))
+                            [:status :body :headers])))
+        (is (= 1 @call-counter)))))
+  (testing "will retry with back-off"
+    (let [error {:error {:errors [{:reason "rateLimitExceeded"}]}}
+          body {:yay "it worked"}
+          call-counter (atom 0)
+          backoff-counter (atom 0)
+          backoff-fn #(do (swap! backoff-counter inc)
+                          (Thread/sleep 1000))]
+      (with-fake-routes-in-isolation
+        {(str (api-url "/foo")
+              "?key=FAKE-KEY&extra=thingy")
+         (fn [_]
+           (let [c @call-counter]
+             (swap! call-counter inc)
+             (if (> c 0)
+               {:status 200
+                :headers {"Content-Type"
+                          "application/json"}
+                :body (json/generate-string body)}
+               {:status 403
+                :headers {"Content-Type"
+                          "application/json"}
+                :body (json/generate-string error)})))}
+        (let [start (System/currentTimeMillis)
+              response (api-req "FAKE-KEY" "/foo" {:extra "thingy"}
+                                5 backoff-fn)
+              stop (System/currentTimeMillis)]
+          (is (= body response))
+          (is (= 2 @call-counter))
+          (is (<= 1000 (- stop start)))
+          (is (= 1 @backoff-counter))))))
+  (testing "will retry until limit"
+    (let [error {:error {:errors [{:reason "rateLimitExceeded"}]}}
+          body {:yay "it worked"}
+          call-counter (atom 0)
+          backoff-counter (atom 0)
+          backoff-fn #(do (swap! backoff-counter inc)
+                          (Thread/sleep 100))]
+      (with-fake-routes-in-isolation
+        {(str (api-url "/foo")
+              "?key=FAKE-KEY&extra=thingy")
+         (fn [_]
+           (let [c @call-counter]
+             (swap! call-counter inc)
+             {:status 403
+              :headers {"Content-Type"
+                        "application/json"}
+              :body (json/generate-string error)}))}
+        (let [start (System/currentTimeMillis)
+              response (api-req "FAKE-KEY" "/foo" {:extra "thingy"}
+                                10 backoff-fn)
+              stop (System/currentTimeMillis)]
+          (is (= error (:body response)))
+          (is (= 403 (:status response)))
+          (is (= 11 @call-counter))
+          (is (<= 1000 (- stop start)))
+          (is (= 10 @backoff-counter)))))))
