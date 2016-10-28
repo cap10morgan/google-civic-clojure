@@ -19,12 +19,13 @@ Google Civic API client
 Both elections and voter-info have a version that can be called to get backoff retry
 mechanics. In these cases, if the initial call returns either a server error or a 403
 error with one of several reasons that indicate a temporary rate limit has been exceeded,
-it will retry the call. You provide a retry-limit (the maximum number of retries, so total
-calls could be retry-limit + 1), and a backoff function, with which you should pause
-processing for as long as you deem appropriate.
+it will retry the call. The optional retry-config parameter should be a hash suitable
+for configuring the `try-try-again` function from the [robert-the-bruce](https://github.com/joegallo/robert-bruce) library, but any `:return?` configuration will be overwritten.
 
 ```clojure
-(voter-info "YOUR API KEY" "123 Main St Denver CO 80218" nil 10 #(Thread/sleep 1000))
+(elections "YOUR API KEY" {:tries :unlimited :sleep 100 :decay :exponential})
+
+(voter-info "YOUR API KEY" "123 Main St Denver CO 80218" nil {:tries 10 :sleep 1000})
 ```
 
 ## License

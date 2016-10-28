@@ -26,44 +26,51 @@
 
 (deftest temporary-rate-limit?-test
   (testing "returns false if the code isn't 403"
-    (is (not (temporary-rate-limit? {:status 404}
-                                    {:error {:errors
-                                             [{:reason "notFound"}]}}))))
+    (is (not (temporary-rate-limit? {:status 404
+                                     :body
+                                     {:error {:errors
+                                              [{:reason "notFound"}]}}}))))
   (testing "returns false if the reason isn't in the set"
-    (is (not (temporary-rate-limit? {:status 403}
-                                    {:error {:errors
-                                             [{:reason "quotaLimit"}]}}))))
+    (is (not (temporary-rate-limit? {:status 403
+                                     :body
+                                     {:error {:errors
+                                              [{:reason "quotaLimit"}]}}}))))
   (testing "returns false if there are any non set reasons"
-    (is (not (temporary-rate-limit? {:status 403}
-                                    {:error
-                                     {:errors
-                                      [{:reason "rateLimitExceeded"}
-                                       {:reason "quotaLimit"}]}}))))
+    (is (not (temporary-rate-limit? {:status 403
+                                     :body
+                                     {:error
+                                      {:errors
+                                       [{:reason "rateLimitExceeded"}
+                                        {:reason "quotaLimit"}]}}}))))
   (testing "returns true with only temporary rate limits"
-    (is (temporary-rate-limit? {:status 403}
-                               {:error
-                                {:errors
-                                 [{:reason "rateLimitExceeded"}]}}))
-    (is (temporary-rate-limit? {:status 403}
-                               {:error
-                                {:errors
-                                 [{:reason "rateLimitExceeded"}
-                                  {:reason "userRateLimitExceeded"}]}}))))
+    (is (temporary-rate-limit? {:status 403
+                                :body
+                                {:error
+                                 {:errors
+                                  [{:reason "rateLimitExceeded"}]}}}))
+    (is (temporary-rate-limit? {:status 403
+                                :body
+                                {:error
+                                 {:errors
+                                  [{:reason "rateLimitExceeded"}
+                                   {:reason "userRateLimitExceeded"}]}}}))))
 
 (deftest can-retry?-test
   (testing "true if code is server error"
-    (is (can-retry? {:status 500}
-                    {:error {:errors [{:reason "serverError"}]}})))
+    (is (can-retry? {:status 500
+                     :body {:error {:errors [{:reason "serverError"}]}}})))
   (testing "true if temporary rate limit"
-    (is (can-retry? {:status 403}
-                    {:error {:errors [{:reason "rateLimitExceeded"}]}})))
+    (is (can-retry?
+         {:status 403
+          :body {:error {:errors [{:reason "rateLimitExceeded"}]}}})))
   (testing "false for anything else"
-    (is (not (can-retry? {:status 403}
-                         {:error {:errors [{:reason "quotaExceeded"}]}})))
-    (is (not (can-retry? {:status 302} nil)))))
+    (is (not (can-retry?
+              {:status 403
+               :body {:error {:errors [{:reason "quotaExceeded"}]}}})))
+    (is (not (can-retry? {:status 302 :body nil})))))
 
 (deftest api-req-test
-  (testing "returns parsed response body on success - no query params"
+  (testing "returns response on success - no query params"
     (let [body {:yay "it worked"}
           call-counter (atom 0)]
       (with-fake-routes-in-isolation {(str (api-url "/foo")
@@ -73,10 +80,11 @@
                                                :headers {"Content-Type"
                                                          "application/json"}
                                                :body (json/generate-string body)})}
-        (is (= body
-               (api-req "FAKE-KEY" "/foo")))
+        (let [response (api-req "FAKE-KEY" "/foo")]
+          (is (= 200 (:status response)))
+          (is (= body (:body response))))
         (is (= 1 @call-counter)))))
-  (testing "returns parsed response body on success"
+  (testing "returns response on success - with query params"
     (let [body {:yay "it worked"}
           call-counter (atom 0)]
       (with-fake-routes-in-isolation {(str (api-url "/foo")
@@ -86,8 +94,9 @@
                                                :headers {"Content-Type"
                                                          "application/json"}
                                                :body (json/generate-string body)})}
-        (is (= body
-               (api-req "FAKE-KEY" "/foo" {:extra "thingy"})))
+        (let [response (api-req "FAKE-KEY" "/foo" {:extra "thingy"})]
+          (is (= 200 (:status response)))
+          (is (= body (:body response))))
         (is (= 1 @call-counter)))))
   (testing "returns parsed error response"
     (let [error {:error {:errors [{:bad "error"}]}}
@@ -95,11 +104,11 @@
       (with-fake-routes-in-isolation {(str (api-url "/foo")
                                            "?key=FAKE-KEY&bad=error")
                                       (fn [_] (swap! call-counter inc)
-                                              {:status 400
-                                               :headers {"Content-Type"
-                                                         "application/json"}
-                                               :body (json/generate-string
-                                                      error)})}
+                                        {:status 400
+                                         :headers {"Content-Type"
+                                                   "application/json"}
+                                         :body (json/generate-string
+                                                error)})}
         (is (= {:status 400 :body error :headers {"Content-Type"
                                                   "application/json"}}
                (select-keys (api-req "FAKE-KEY" "/foo" {:bad "error"})
@@ -108,10 +117,7 @@
   (testing "will retry with back-off"
     (let [error {:error {:errors [{:reason "rateLimitExceeded"}]}}
           body {:yay "it worked"}
-          call-counter (atom 0)
-          backoff-counter (atom 0)
-          backoff-fn #(do (swap! backoff-counter inc)
-                          (Thread/sleep 1000))]
+          call-counter (atom 0)]
       (with-fake-routes-in-isolation
         {(str (api-url "/foo")
               "?key=FAKE-KEY&extra=thingy")
@@ -128,20 +134,18 @@
                           "application/json"}
                 :body (json/generate-string error)})))}
         (let [start (System/currentTimeMillis)
-              response (api-req "FAKE-KEY" "/foo" {:extra "thingy"}
-                                5 backoff-fn)
+              response (api-req "FAKE-KEY" "/foo"
+                                {:extra "thingy"}
+                                {:tries 5 :sleep 1000})
               stop (System/currentTimeMillis)]
-          (is (= body response))
+          (is (= 200 (:status response)))
+          (is (= body (:body response)))
           (is (= 2 @call-counter))
-          (is (<= 1000 (- stop start)))
-          (is (= 1 @backoff-counter))))))
+          (is (<= 1000 (- stop start)))))))
   (testing "will retry until limit"
     (let [error {:error {:errors [{:reason "rateLimitExceeded"}]}}
           body {:yay "it worked"}
-          call-counter (atom 0)
-          backoff-counter (atom 0)
-          backoff-fn #(do (swap! backoff-counter inc)
-                          (Thread/sleep 100))]
+          call-counter (atom 0)]
       (with-fake-routes-in-isolation
         {(str (api-url "/foo")
               "?key=FAKE-KEY&extra=thingy")
@@ -154,10 +158,9 @@
               :body (json/generate-string error)}))}
         (let [start (System/currentTimeMillis)
               response (api-req "FAKE-KEY" "/foo" {:extra "thingy"}
-                                10 backoff-fn)
+                                {:tries 10 :sleep 100})
               stop (System/currentTimeMillis)]
           (is (= error (:body response)))
           (is (= 403 (:status response)))
-          (is (= 11 @call-counter))
-          (is (<= 1000 (- stop start)))
-          (is (= 10 @backoff-counter)))))))
+          (is (= 10 @call-counter))
+          (is (<= 900 (- stop start))))))))
