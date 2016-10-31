@@ -1,8 +1,8 @@
-(defproject google-civic "2.0.2-SNAPSHOT"
+(defproject google-civic "2.1.0-SNAPSHOT"
   :description "Google Civic Info API client"
   :dependencies [[org.clojure/clojure "1.7.0"]
-                 [clj-http "2.0.0"]
-                 [cheshire "5.5.0"]
-                 [slingshot "0.12.2"]]
+                 [clj-http "3.3.0"]
+                 [cheshire "5.6.3"]
+                 [robert/bruce "0.8.0"]]
   :deploy-repositories {"releases" :clojars}
-  :profiles {:dev {:dependencies [[clj-http-fake "1.0.1"]]}})
+  :profiles {:dev {:dependencies [[clj-http-fake "1.0.2"]]}})
